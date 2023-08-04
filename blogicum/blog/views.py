@@ -118,13 +118,13 @@ class PostListView(ListView):
 
     def get_queryset(self):
         return Post.objects.select_related(
-                'category',
-                'location',
-                'author').filter(
-                is_published=True,
-                category__is_published=True,
-                pub_date__lte=timezone.now()
-            ).annotate(comment_count=Count('comments')).order_by('-pub_date')
+            'category',
+            'location',
+            'author').filter(
+            is_published=True,
+            category__is_published=True,
+            pub_date__lte=timezone.now()
+        ).annotate(comment_count=Count('comments')).order_by('-pub_date')
 
 
 class PostDetailView(DetailView):
@@ -134,11 +134,11 @@ class PostDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['post'] = get_object_or_404(Post.objects.select_related(
-                'category',
-                'location',
-                'author'),
-                pk=self.kwargs['pk']
-            )
+            'category',
+            'location',
+            'author'),
+            pk=self.kwargs['pk']
+        )
         if self.object.author != self.request.user:
             context['post'] = get_object_or_404(Post.objects.select_related(
                 'category',
