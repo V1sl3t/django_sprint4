@@ -1,8 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.paginator import Paginator
 from django.db.models import Count
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import (CreateView, DeleteView, DetailView, ListView,
@@ -73,7 +72,7 @@ class PostCreateView(LoginRequiredMixin, CreateView):
         )
 
 
-class PostUpdateView(UpdateView, LoginRequiredMixin):
+class PostMixin:
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
@@ -84,14 +83,14 @@ class PostUpdateView(UpdateView, LoginRequiredMixin):
             return redirect('blog:post_detail', pk=kwargs['pk'])
         return super().dispatch(request, *args, **kwargs)
 
+
+class PostUpdateView(LoginRequiredMixin, PostMixin, UpdateView):
+
     def get_success_url(self):
         return reverse('blog:post_detail', kwargs={'pk': self.kwargs['pk']})
 
 
-class PostDeleteView(DeleteView, LoginRequiredMixin):
-    model = Post
-    form_class = PostForm
-    template_name = 'blog/create.html'
+class PostDeleteView(LoginRequiredMixin, PostMixin, DeleteView):
     success_url = reverse_lazy('blog:index')
 
     def dispatch(self, request, *args, **kwargs):
@@ -189,22 +188,27 @@ class CommentDeleteView(LoginRequiredMixin, CommentMixin, DeleteView):
     pass
 
 
-def category_posts(request, category_slug):
-    template = 'blog/category.html'
-    category = get_object_or_404(Category.objects.filter(
-        is_published=True),
-        slug=category_slug)
-    posts = Post.objects.select_related(
-        'category',
-        'location',
-        'author').filter(
-        is_published=True,
-        pub_date__lte=timezone.now(),
-        category=category).annotate(
-        comment_count=Count('comments')).order_by(
-        '-pub_date')
-    paginator = Paginator(posts, POSTS_NUMBER)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    context = {'category': category, 'page_obj': page_obj}
-    return render(request, template, context)
+class CategoryListView(ListView):
+    model = Category
+    template_name = 'blog/index.html'
+    ordering = 'id'
+    paginate_by = POSTS_NUMBER
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category'] = get_object_or_404(Category.objects.filter(
+            is_published=True),
+            slug=self.kwargs['category_slug']
+        )
+        return context
+
+    def get_queryset(self):
+        return Post.objects.select_related(
+            'category',
+            'location',
+            'author').filter(
+            is_published=True,
+            pub_date__lte=timezone.now(),
+            category__slug=self.kwargs['category_slug']).annotate(
+            comment_count=Count('comments')).order_by(
+            '-pub_date')
